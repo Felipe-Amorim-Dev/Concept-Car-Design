@@ -2,83 +2,121 @@
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
-  <title>Concept Car 3D Viewer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Concept Car – Viewer</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #111; }
-    canvas { width: 100%; height: 100%; display: block; }
+    html, body { height:100%; margin:0; background:#0b0d10; }
+    canvas { display:block; width:100%; height:100%; }
+    .hint{position:fixed;left:10px;bottom:10px;color:#cfd7e3;font:12px system-ui;background:rgba(255,255,255,.06);padding:8px 10px;border-radius:8px}
   </style>
 </head>
 <body>
   <canvas id="app"></canvas>
+  <div class="hint">Arraste: orbitar • Scroll: zoom • Shift+arraste: pan • Tecla <b>T</b>: trocar material</div>
 
-  <!-- Aqui vai o script do Three.js + STLLoader -->
   <script type="module">
     import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
     import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
-    import { STLLoader }   from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/STLLoader.js";
+    import { STLLoader }    from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/STLLoader.js";
 
-    // Renderer
-    const canvas = document.getElementById("app");
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    const canvas   = document.getElementById("app");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.setSize(innerWidth, innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
 
-    // Cena + câmera
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x111111);
+    scene.background = new THREE.Color(0x0b0d10);
 
-    const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 1000);
-    camera.position.set(3, 2, 5);
-
+    // Câmera/controles
+    const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 5000);
+    camera.position.set(3.5, 2.2, 5.5);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
 
-    // Luzes
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-    const dir = new THREE.DirectionalLight(0xffffff, 1);
-    dir.position.set(5, 5, 5);
-    scene.add(dir);
+    // Luzes decentes
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x222233, 0.5));
+    const key = new THREE.DirectionalLight(0xffffff, 1.1);
+    key.position.set(6, 8, 6);
+    key.castShadow = true;
+    scene.add(key);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+    // Helpers (opcional): grade para referência
+    const grid = new THREE.GridHelper(20, 40, 0x33373d, 0x22262c);
+    grid.position.y = -0.001;
+    scene.add(grid);
 
     // Carregar STL
     const loader = new STLLoader();
-    loader.load("./assets/Concept_Car.stl", geometry => {
-      const material = new THREE.MeshPhysicalMaterial({
-        color: 0x1b7da9, metalness: 0.3, roughness: 0.35,
-        clearcoat: 0.7, clearcoatRoughness: 0.2
-      });
+    let mesh, useNormalMat = false;
 
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.castShadow = mesh.receiveShadow = true;
+    loader.load(
+      "./assets/Concept_Car.stl",
+      (geometry) => {
+        // Alguns STLs não têm normais → gera para evitar “preto”
+        geometry.computeVertexNormals();
 
-      // Centralizar
-      geometry.computeBoundingBox();
-      const box = geometry.boundingBox;
-      const center = new THREE.Vector3();
-      box.getCenter(center);
-      mesh.position.sub(center);
+        const pbr = new THREE.MeshPhysicalMaterial({
+          color: 0x1b7da9, metalness: 0.35, roughness: 0.4,
+          clearcoat: 0.8, clearcoatRoughness: 0.2
+        });
+        const normalMat = new THREE.MeshNormalMaterial();
 
-      // Escalar
-      const size = new THREE.Vector3();
-      box.getSize(size);
-      const scale = 3.2 / Math.max(size.x, size.y, size.z);
-      mesh.scale.setScalar(scale);
+        mesh = new THREE.Mesh(geometry, pbr);
+        mesh.castShadow = mesh.receiveShadow = true;
 
-      scene.add(mesh);
-    });
+        // Centraliza e ajusta escala
+        geometry.computeBoundingBox();
+        const box = geometry.boundingBox;
+        const size = new THREE.Vector3(); box.getSize(size);
+        const center = new THREE.Vector3(); box.getCenter(center);
+        mesh.position.sub(center); // leva o centro para (0,0,0)
+
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale  = 3.2 / maxDim;  // “tamanho alvo” na tela
+        mesh.scale.setScalar(scale);
+
+        scene.add(mesh);
+
+        // Mira a câmera um pouco acima do chão
+        controls.target.set(0, (size.y * scale) * 0.25, 0);
+        controls.update();
+
+        // Tecla T → alterna material (debug)
+        addEventListener("keydown", (e) => {
+          if (e.key.toLowerCase() === "t" && mesh){
+            useNormalMat = !useNormalMat;
+            mesh.material = useNormalMat ? normalMat : pbr;
+            mesh.material.needsUpdate = true;
+          }
+        });
+      },
+      undefined,
+      (err) => {
+        console.error("Falha ao carregar STL:", err);   // veja o console
+        const msg = document.createElement("div");
+        msg.style.cssText = "position:fixed;top:10px;left:10px;background:#b00020;color:#fff;padding:8px 10px;border-radius:6px;font:12px system-ui";
+        msg.textContent = "Erro ao carregar ./assets/Concept_Car.stl (confira o caminho e o nome do arquivo).";
+        document.body.appendChild(msg);
+      }
+    );
 
     // Responsivo
-    window.addEventListener("resize", () => {
+    addEventListener("resize", () => {
       renderer.setSize(innerWidth, innerHeight);
-      camera.aspect = innerWidth / innerHeight;
+      camera.aspect = innerWidth/innerHeight;
       camera.updateProjectionMatrix();
     });
 
     // Loop
-    function animate() {
+    (function tick(){
       controls.update();
       renderer.render(scene, camera);
-      requestAnimationFrame(animate);
-    }
-    animate();
+      requestAnimationFrame(tick);
+    })();
   </script>
 </body>
 </html>
