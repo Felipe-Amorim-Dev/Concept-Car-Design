@@ -1,3 +1,3 @@
 # Concept Car
 
-[Modelo 3D (STL)](./assets/Concept_Car.stl)
+▶️ Visualização 3D (GitHub Pages): https://SEU_USUARIO.github.io/Concept-Car-Design/
