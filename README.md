@@ -49,6 +49,18 @@ python -m http.server 8000
 
 [CAD-Viewer](https://github.com/Felipe-Amorim-Dev/CAD-Viewer) — Biblioteca de visualização 3D.
 
+## 🏗️ Organização e implementação do projeto
+
+- O projeto concentra a experiência 3D em index.html, com importação de módulos Three.js pela CDN.
+- STLLoader lê assets/Concept_Car.stl; OrbitControls implementa rotação, pan e zoom.
+- WebGLRenderer desenha a cena, enquanto iluminação Hemisphere/Directional/Ambient e GridHelper compõem a apresentação.
+- Ao carregar a geometria, o código recalcula normais, centraliza o modelo e ajusta sua escala.
+- A tecla T alterna MeshPhysicalMaterial e MeshNormalMaterial; resize atualiza proporção da câmera e viewport.
+
+### Estrutura e recursos
+
+Os principais arquivos e recursos estão em `assets/Concept_Car.stl`. O ponto de entrada é `index.html`.
+
 <a id="licenca"></a>
 ## 📄 Licença
 
